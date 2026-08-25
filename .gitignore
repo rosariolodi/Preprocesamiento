@@ -1,0 +1,11 @@
+# Datos crudos (no versionar)
+data/*.xls
+data/*.xlsx
+data/*.csv
+# Jupyter
+.ipynb_checkpoints/
+__pycache__/
+
+# Entornos
+.venv/
+env/
