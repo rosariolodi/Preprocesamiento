@@ -1,0 +1,17 @@
+# Diccionario de features – NovaMarket (Semana 13)
+
+| Feature | Fórmula | Tipo de dato | Justificación de negocio |
+|---|---|---|---|
+| `dias_desde_ultima_compra` | `fecha_referencia − fecha_ultima_compra` (en días; referencia = 2026-10-19) | Numérico entero (`int`) | Mide qué tan "fría" está la relación con el cliente. Es la señal más directa de riesgo de abandono y permite priorizar campañas de reactivación. |
+| `es_cliente_recurrente` | `numero_compras > 1` | Booleano (0/1) | Separa clientes que ya repitieron compra de los de una sola compra. Permite diseñar estrategias distintas: convertir primerizos en recurrentes y fidelizar a los recurrentes. |
+| `total_gastado` | `sum(monto)` por `id_cliente` | Numérico continuo (`float`) | Indica cuánto valor aporta cada cliente. Sirve para identificar a los clientes más rentables y asignar presupuesto de retención. |
+| `numero_compras` | `count(id_compra)` por `id_cliente` | Numérico entero (`int`) | Mide la frecuencia de compra. Distingue clientes habituales de ocasionales y es base de `score_F` y de `es_cliente_recurrente`. |
+| `gasto_promedio` | `mean(monto)` por `id_cliente` (equivale a `total_gastado / numero_compras`) | Numérico continuo (`float`) | Muestra el ticket típico del cliente. Dos clientes con el mismo gasto total pueden comportarse distinto (muchas compras pequeñas vs. pocas grandes), y esto orienta ofertas de upselling y bundles. |
+| `compras_ultimos_30_dias` | `count(id_compra)` con `fecha_pedido` en los últimos 30 días, por `id_cliente` (0 si no hay compras) | Numérico entero (`int`) | Captura la actividad reciente, que el histórico total no refleja. Detecta clientes que se aceleran o se enfrían y sirve para activar promociones oportunas. |
+| `score_R` | Cuartiles (`qcut`, q=4) de `dias_desde_ultima_compra`, con etiquetas 4 (más reciente) a 1 (menos reciente) | Ordinal (1–4) | Resume la recencia en una escala simple, comparable entre clientes y fácil de usar para segmentar. |
+| `score_F` | Cuartiles de `numero_compras` (con `rank(method="first")`), etiquetas 1 a 4 | Ordinal (1–4) | Resume la frecuencia en una escala común y evita que los empates dañen los cortes. Permite identificar a los clientes más habituales. |
+| `score_M` | Cuartiles de `total_gastado`, etiquetas 1 a 4 | Ordinal (1–4) | Resume el valor monetario en una escala común. Ayuda a concentrar esfuerzos en el cuartil de mayor gasto. |
+| `rfm_score` | `score_R + score_F + score_M` | Numérico entero (3–12) | Combina recencia, frecuencia y monto en un único indicador de valor del cliente. Permite segmentar rápido (campeones, en riesgo, dormidos) y priorizar acciones de marketing. |
+| `es_temporada_alta` | `1` si `fecha_pedido.dt.month` ∈ {11, 12}, si no `0` | Booleano (0/1) | NovaMarket concentra ventas en noviembre y diciembre. La bandera permite distinguir el comportamiento estacional del habitual y planificar inventario y campañas. |
+| `categoria_favorita` | Categoría de `categoria_producto` con mayor conteo de compras por `id_cliente` | Categórico (texto) | Revela la afinidad del cliente. Habilita recomendaciones personalizadas y comunicaciones por categoría. |
+| `canal_principal` | Canal de `canal_compra` (web, app, tienda física) con mayor conteo de compras por `id_cliente` | Categórico (texto) | Indica dónde prefiere comprar cada cliente. Permite elegir el canal de contacto y decidir inversión por canal. |
