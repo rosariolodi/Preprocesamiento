@@ -1,17 +1,40 @@
-# Diccionario de features – NovaMarket (Semana 13)
+## Resumen general de features
 
-| Feature | Fórmula | Tipo de dato | Justificación de negocio |
+Se construyeron **9 features** (más sus indicadores auxiliares) sobre el dataset integrado de ventas, bodega y CRM (570.976 pedidos, 151.117 clientes). Ninguna de las consignas se pudo ejecutar tal cual, porque usaban columnas que no existen en este dataset (`fecha_ultima_compra`, `numero_compras`, `monto`, `id_compra`, `fecha`, `canal_compra`, `df_transacciones`). En cada caso se derivó la variable desde columnas reales o se mapeó al nombre correcto.
+
+### Features creadas
+
+| Feature | Nivel | Dónde vive | Cómo se construyó |
 |---|---|---|---|
-| `dias_desde_ultima_compra` | `fecha_referencia − fecha_ultima_compra` (en días; referencia = 2026-10-19) | Numérico entero (`int`) | Mide qué tan "fría" está la relación con el cliente. Es la señal más directa de riesgo de abandono y permite priorizar campañas de reactivación. |
-| `es_cliente_recurrente` | `numero_compras > 1` | Booleano (0/1) | Separa clientes que ya repitieron compra de los de una sola compra. Permite diseñar estrategias distintas: convertir primerizos en recurrentes y fidelizar a los recurrentes. |
-| `total_gastado` | `sum(monto)` por `id_cliente` | Numérico continuo (`float`) | Indica cuánto valor aporta cada cliente. Sirve para identificar a los clientes más rentables y asignar presupuesto de retención. |
-| `numero_compras` | `count(id_compra)` por `id_cliente` | Numérico entero (`int`) | Mide la frecuencia de compra. Distingue clientes habituales de ocasionales y es base de `score_F` y de `es_cliente_recurrente`. |
-| `gasto_promedio` | `mean(monto)` por `id_cliente` (equivale a `total_gastado / numero_compras`) | Numérico continuo (`float`) | Muestra el ticket típico del cliente. Dos clientes con el mismo gasto total pueden comportarse distinto (muchas compras pequeñas vs. pocas grandes), y esto orienta ofertas de upselling y bundles. |
-| `compras_ultimos_30_dias` | `count(id_compra)` con `fecha_pedido` en los últimos 30 días, por `id_cliente` (0 si no hay compras) | Numérico entero (`int`) | Captura la actividad reciente, que el histórico total no refleja. Detecta clientes que se aceleran o se enfrían y sirve para activar promociones oportunas. |
-| `score_R` | Cuartiles (`qcut`, q=4) de `dias_desde_ultima_compra`, con etiquetas 4 (más reciente) a 1 (menos reciente) | Ordinal (1–4) | Resume la recencia en una escala simple, comparable entre clientes y fácil de usar para segmentar. |
-| `score_F` | Cuartiles de `numero_compras` (con `rank(method="first")`), etiquetas 1 a 4 | Ordinal (1–4) | Resume la frecuencia en una escala común y evita que los empates dañen los cortes. Permite identificar a los clientes más habituales. |
-| `score_M` | Cuartiles de `total_gastado`, etiquetas 1 a 4 | Ordinal (1–4) | Resume el valor monetario en una escala común. Ayuda a concentrar esfuerzos en el cuartil de mayor gasto. |
-| `rfm_score` | `score_R + score_F + score_M` | Numérico entero (3–12) | Combina recencia, frecuencia y monto en un único indicador de valor del cliente. Permite segmentar rápido (campeones, en riesgo, dormidos) y priorizar acciones de marketing. |
-| `es_temporada_alta` | `1` si `fecha_pedido.dt.month` ∈ {11, 12}, si no `0` | Booleano (0/1) | NovaMarket concentra ventas en noviembre y diciembre. La bandera permite distinguir el comportamiento estacional del habitual y planificar inventario y campañas. |
-| `categoria_favorita` | Categoría de `categoria_producto` con mayor conteo de compras por `id_cliente` | Categórico (texto) | Revela la afinidad del cliente. Habilita recomendaciones personalizadas y comunicaciones por categoría. |
-| `canal_principal` | Canal de `canal_compra` (web, app, tienda física) con mayor conteo de compras por `id_cliente` | Categórico (texto) | Indica dónde prefiere comprar cada cliente. Permite elegir el canal de contacto y decidir inversión por canal. |
+| `dias_desde_ultima_compra` (+ `fecha_ultima_compra`, `dias_desde_ultima_compra_era_nulo`) | cliente | `df` y `resumen_cliente` | Máximo de `fecha_pedido` válida por `id_cliente`; días hasta el corte 2026-10-19. Los clientes sin fecha válida quedan en `NaN` con indicador. |
+| `numero_compras` | cliente | `df` y `resumen_cliente` | Conteo de `id_pedido` distintos por `id_cliente` (1 a 14). |
+| `es_cliente_recurrente` | cliente | `df` | `numero_compras > 1`. |
+| `total_gastado`, `gasto_promedio` | cliente | `resumen_cliente` | Suma y promedio de `monto_compra` por `id_cliente`. |
+| `score_R`, `score_F`, `score_M`, `rfm_score` | cliente | `resumen_cliente` | Cuartiles (`qcut` con `rank(method="first")`) de recencia (escala invertida), frecuencia y gasto; suma de 3 a 12. |
+| `es_temporada_alta` | pedido | `df` | 1 si el mes de `fecha_pedido` es noviembre o diciembre; `NA` si la fecha es nula o futura. |
+| `categoria_favorita` (+ `categoria_favorita_empate`) | cliente | `resumen_cliente` | Categoría con más pedidos por cliente, reconstruida antes desde las dummies `cat_*`. |
+| `canal_principal` (+ `canal_principal_empate`) | cliente | `resumen_cliente` | Canal con más pedidos por cliente, reconstruido antes desde las dummies `canal_*`. |
+
+**Feature descartada:** `compras_ultimos_30_dias`. La ventana de 30 días previa al corte (2026-09-19 a 2026-10-19) no contiene ningún pedido válido, porque los datos terminan el 2026-05-15. La feature sería constante en 0, o contaría solo fechas de 2027 (imposibles), por lo que no aporta información.
+
+### Qué se usó para construirlas
+
+- **Llave de agregación:** `id_cliente`, que no tiene nulos. No se usó `correo_cliente`, porque tiene faltantes (MNAR).
+- **Mapeo de nombres:** `monto` → `monto_compra` (valor original, no las versiones escaladas, logarítmica o Box-Cox, que no tienen sentido al sumar); `id_compra` → `id_pedido`, que es único por fila (570.976 valores, sin nulos ni valores concatenados); `fecha` → `fecha_pedido`.
+- **Reconstrucción desde dummies:** `categoria` y `canal_compra` se recuperaron con `idxmax` sobre las columnas `cat_*` y `canal_*`, verificando que cada fila tuviera exactamente una dummy activa.
+- **Joins:** se hicieron con `how="left"` y `validate`, comprobando que el número de filas no cambiara.
+- **Indicadores `*_era_nulo` y `*_empate`:** se conservó la trazabilidad en lugar de imputar valores inventados.
+
+### Decisiones sobre la calidad de los datos
+
+- **Fechas imposibles:** 14.694 pedidos con fecha en 2027 se trataron como inválidos (columna `fecha_pedido_futura`) y se excluyeron de la recencia y de `es_temporada_alta`. Además hay 20.288 fechas nulas.
+- **Clientes sin recencia:** 993 clientes (1.098 filas) no tienen ninguna fecha válida; quedan sin `dias_desde_ultima_compra` ni `rfm_score`, sin imputar.
+- **Empates:** el 45,1 % de los clientes tiene empate en la categoría favorita y el 36,6 % en el canal principal. El desempate es alfabético (para que sea reproducible) y se marca con indicadores.
+
+### Limitaciones a tener en cuenta
+
+1. **Desfase temporal:** las fechas válidas terminan el 2026-05-15 y el corte es el 2026-10-19, por lo que la recencia mínima es de 157 días. R conserva el orden relativo entre clientes, pero no indica abandono real. Del mismo modo, `es_temporada_alta` solo cubre noviembre y diciembre de 2025.
+2. **Porcentajes por fila:** el 97,5 % de las filas pertenece a clientes recurrentes, pero ese número está inflado, porque los clientes recurrentes aportan más filas. La cifra por cliente es menor y es la que debe reportarse.
+3. **Fuga de información:** las features por cliente (recencia, compras, gasto, RFM, categoría y canal favoritos) usan todo el historial, incluidos pedidos posteriores a cada fila. Si se usan para predecir `fuga_cliente` con la partición `conjunto`, deben recalcularse solo con datos de entrenamiento o con una ventana previa a cada pedido.
+4. **Columnas contaminadas por fechas imposibles:** `mes_pedido`, `trimestre_pedido`, `dia_semana_pedido` y `es_fin_semana_pedido` se calcularon con las fechas de 2027 en esas 14.694 filas y no se corrigieron en este notebook.
+5. **Desempate arbitrario:** `rank(method="first")` en RFM desempata por orden de aparición, lo que afecta sobre todo a `numero_compras`, que tiene pocos valores distintos.
